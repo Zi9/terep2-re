@@ -16,10 +16,10 @@ typedef struct {
 
 TCHAR szAppName[] = TEXT("Terep2Win32") ;
 
-extern void asm_f_init();
-extern void asm_render();
-extern void asm_physics();
-extern void asm_keys(uint16_t);
+extern void asm_f_init(void) __asm__("asm_f_init_");
+extern void asm_render(void) __asm__("asm_render_");
+extern void asm_keys(uint16_t) __asm__("asm_keys_");
+extern void asm_physics(void) __asm__("asm_physics_");
 
 extern volatile uintptr_t all_segments[];
 extern volatile call_portal_t call_portal[];
@@ -178,7 +178,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 DrawText(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             } else {
                 int videoSegSel = base_mem[0xdb10];
-                char *video = all_segments[videoSegSel];
+                char *video = (char*)all_segments[videoSegSel];
 
                 StretchDIBits(hdc,
                     0,  0, 320*2, 200*2,
@@ -211,7 +211,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         SetDIBitsToDevice(hdc,
                             rc.left, rc.top + 25, 256, 256,
                             0, 0, 0, 256,
-                            ptr, (void *)&blinkenImg,
+                            (void*)ptr, (void *)&blinkenImg,
                             DIB_RGB_COLORS
                         );
                     }
@@ -354,7 +354,7 @@ void prepare_bitmap_info(int w, int h, st_image *bminfo, uint8_t *palette){
 
 int mydoscall(HWND hwnd, char path[]);
 
-void __watcall GameInitThread(void *param) {
+void GameInitThread(void *param) {
     asm_f_init();
     _endthread();
 }

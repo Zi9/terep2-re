@@ -130,6 +130,9 @@ asm_keys:
 asm_keys_:
     airlock_prologue
 
+    ; MinGW likes that stack
+    mov ax, [esp + 4]
+
     ;TODO get keys from the window
     call FUN_keyboard_56df
 
