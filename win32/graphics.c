@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <windows.h>
 #include "common.h"
@@ -10,9 +11,12 @@ extern volatile uint8_t  base_mem[];
 
 extern st_image gameImg;
 
+RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b);
+
 void drawTheFramebuffer(HDC hdc,int scale){
     int videoSegSel = base_mem[0xdb10];
     void *video = (void*)all_segments[videoSegSel];
+    uint8_t* ivideo = (uint8_t *)video;
 
     if(scale == T2_SCALE_P2){
         StretchDIBits(hdc,
@@ -21,6 +25,42 @@ void drawTheFramebuffer(HDC hdc,int scale){
             video, (void *)&gameImg,
             DIB_RGB_COLORS, SRCCOPY
         );
+        return;
+    }
+    //TODO 640*480, 480/400 is 6/5 by the way
+
+    if(scale == T2_SCALE_S2){
+        rgb_image iinfo;
+        prepare_rgb_info(800, 200, &iinfo);
+        static RGBQUAD *img = NULL;
+        if(img == NULL){
+            img = malloc(800*200 * 4);
+        }
+
+        int oidx = 0;
+        for(int line = 0; line < 200; line++){            
+            for(int col = 0; col < 320; col+=2){
+                int iidx = line*320 + col;
+
+                RGBQUAD a = gameImg.palette[ivideo[iidx]];
+                RGBQUAD b = gameImg.palette[ivideo[iidx+1]];
+
+                img[oidx]    = a;
+                img[oidx+1]  = a;
+                img[oidx+2]  = blend_rgb(a,b);
+                img[oidx+3]  = b;
+                img[oidx+4]  = b;
+                oidx += 5;
+            }
+        }
+
+        StretchDIBits(hdc,
+            0,  0, 800, 200*3,
+            0,  0, 800, 200,
+            (void *)img, (void *)&iinfo,
+            DIB_RGB_COLORS, SRCCOPY
+        );
+
         return;
     }
     if(scale == T2_SCALE_S3){
@@ -40,6 +80,15 @@ void drawTheFramebuffer(HDC hdc,int scale){
         video, (void *)&gameImg,
         DIB_RGB_COLORS);
     
+}
+
+RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b){
+    RGBQUAD ret;
+    ret.rgbRed   = (a.rgbRed   + b.rgbRed)/2;
+    ret.rgbGreen = (a.rgbGreen + b.rgbGreen)/2;
+    ret.rgbBlue  = (a.rgbBlue  + b.rgbBlue)/2;
+
+    return ret;
 }
 
 
@@ -68,4 +117,17 @@ void prepare_bitmap_info(int w, int h, st_image *bminfo, uint8_t *palette){
         bminfo->palette[i].rgbBlue  = ptr[2];
         ptr += 3;
     }
+}
+
+void prepare_rgb_info(int w, int h, rgb_image *bminfo){
+    BITMAPINFOHEADER bih = {
+        .biSize = sizeof(BITMAPINFOHEADER),
+        .biWidth = w,
+        .biHeight = -h,
+        .biPlanes = 1,
+        .biBitCount = 32,
+        .biCompression = BI_RGB,
+    };
+
+    bminfo->info = bih;
 }
