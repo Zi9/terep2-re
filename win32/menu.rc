@@ -15,7 +15,6 @@ BEGIN
             MENUITEM "1x", T2_SCALE_P1
             MENUITEM "2x", T2_SCALE_P2
             MENUITEM SEPARATOR
-            MENUITEM "640x480", T2_SCALE_S1
             MENUITEM "800x600", T2_SCALE_S2
             MENUITEM "1600x1200", T2_SCALE_S3
         END

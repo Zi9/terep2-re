@@ -11,7 +11,7 @@ extern volatile uint8_t  base_mem[];
 
 extern st_image gameImg;
 
-RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b);
+static inline RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b);
 
 void drawTheFramebuffer(HDC hdc,int scale){
     int videoSegSel = base_mem[0xdb10];
@@ -82,7 +82,7 @@ void drawTheFramebuffer(HDC hdc,int scale){
     
 }
 
-RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b){
+static inline RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b){
     RGBQUAD ret;
     ret.rgbRed   = (a.rgbRed   + b.rgbRed)/2;
     ret.rgbGreen = (a.rgbGreen + b.rgbGreen)/2;
