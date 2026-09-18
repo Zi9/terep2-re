@@ -4,6 +4,12 @@
 #include <stdint.h>
 
 typedef struct {
+    uint16_t ax, bx, cx, dx, ok;
+    uint16_t _alignment;
+    uint32_t caller;
+} call_portal_t;
+
+typedef struct {
     BITMAPINFOHEADER info;
     RGBQUAD palette[256];
 } st_image;
