@@ -24,7 +24,7 @@ i686-w64-mingw32-gcc \
     ${DEBUG_DEF}     \
     -O1 -g --std=gnu23 -mwindows \
     reasm32/the_thing.obj \
-    win32/{terep2re,fakedoscall}.c      \
+    win32/{terep2re,fakedoscall,graphics}.c      \
     ${BLINKEN_SRC}        \
     win32/menu.o          \
     -lole32 -o build/terep2re32.exe

@@ -42,6 +42,7 @@ int64_t GetTimeee(void){
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static int selected_scale = T2_SCALE_P2;
     HMENU hMenu;
 
     switch (msg) {
@@ -131,6 +132,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     return 0;
                 } break;
             }
+
+            if(LOWORD(wParam)/100 == 401){//gambiarra da boa!
+                selected_scale = LOWORD(wParam);
+                InvalidateRect(hwnd, 0, TRUE);
+                //TODO also change the window size
+            }
         }
         break;
 
@@ -147,15 +154,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
                 DrawText(hdc, "No game is started, please open a track.", -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             } else {
-                int videoSegSel = base_mem[0xdb10];
-                char *video = (char*)all_segments[videoSegSel];
-
-                StretchDIBits(hdc,
-                    0,  0, 320*2, 200*2,
-                    0,  0, 320, 200,
-                    (void *)video, (void *)&gameImg,
-                    DIB_RGB_COLORS, SRCCOPY
-                );
+                drawTheFramebuffer(hdc, selected_scale);
             }
 
             EndPaint(hwnd, &ps);
@@ -317,33 +316,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
         DispatchMessage(&msg);
     }
     return msg.wParam;
-}
-
-void prepare_bitmap_info(int w, int h, st_image *bminfo, uint8_t *palette){
-    BITMAPINFOHEADER bih = {
-        .biSize = sizeof(BITMAPINFOHEADER),
-        .biPlanes = 1,
-        .biBitCount = 8,
-        .biCompression = BI_RGB,
-    };
-
-    bih.biWidth = w;
-    bih.biHeight = -h,
-    bih.biSizeImage = w * h;
-
-    bminfo->info = bih;
-
-    if(palette == NULL){
-        return;
-    }
-
-    uint8_t *ptr = palette;
-    for(int i =0; i<256;i++){
-        bminfo->palette[i].rgbRed   = ptr[0];
-        bminfo->palette[i].rgbGreen = ptr[1];
-        bminfo->palette[i].rgbBlue  = ptr[2];
-        ptr += 3;
-    }
 }
 
 char *tmp_g_path;
