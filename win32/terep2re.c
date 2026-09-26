@@ -401,8 +401,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
 
 #ifdef DEBUGMENU
     blinkenInit();
-    rc.right = 1130;
-    rc.bottom = 600;
+    RECT rc = {0, 0, 1130, 600};
     dwStyle = WS_OVERLAPPEDWINDOW;
     AdjustWindowRect(&rc, dwStyle, FALSE);
 
