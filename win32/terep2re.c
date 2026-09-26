@@ -9,13 +9,6 @@
 #include <mmsystem.h>
 #include "opl3.h"
 
-#define DEFAULT_LEN (1 << 16)
-
-typedef struct {
-    uint16_t ax, bx, cx, dx, ok;
-    uint16_t _alignment;
-    uint32_t caller;
-} call_portal_t;
 
 TCHAR szAppName[] = "Terep2Win32";
 
@@ -24,9 +17,8 @@ extern void asm_render(void);
 extern void asm_physics(void);
 extern void asm_keys(void);
 
-void mydoscall(void);
-int innermydoscall(char path[]);
 void call_init(HWND hwnd, char path[], int complain);
+void adjustWindowSize(HWND hwnd, int w, int h);
 
 extern volatile uintptr_t all_segments[];
 extern volatile call_portal_t call_portal[];
@@ -108,6 +100,7 @@ void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_P
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static int selected_scale = T2_SCALE_P2;
     HMENU hMenu;
 
     switch (msg) {
@@ -206,6 +199,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     return 0;
                 } break;
             }
+
+            if(LOWORD(wParam)/100 == 401){//gambiarra da boa!
+                selected_scale = LOWORD(wParam);
+                int w,h;
+                getScaleDimension(selected_scale, &w, &h);
+                adjustWindowSize(hwnd, w, h);
+            }
         }
         break;
 
@@ -222,15 +222,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
                 DrawText(hdc, "No game is started, please open a track.", -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             } else {
-                int videoSegSel = base_mem[0xdb10];
-                char *video = (char*)all_segments[videoSegSel];
-
-                StretchDIBits(hdc,
-                    0,  0, 320*2, 200*2,
-                    0,  0, 320, 200,
-                    (void *)video, (void *)&gameImg,
-                    DIB_RGB_COLORS, SRCCOPY
-                );
+                drawTheFramebuffer(hdc, selected_scale);
             }
 
             EndPaint(hwnd, &ps);
@@ -394,18 +386,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
 
     QueryPerformanceFrequency(&tickfreq);
 
-    // TODO(gmb): get height of the menubar (20?)
-    RECT rc = {0, 0, 640, 400+20}; /* Tamanho interno desejado */
     DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-    AdjustWindowRect(&rc, dwStyle, FALSE);
-
-    /* Janela aproximada de 800x600 */
     hwnd = CreateWindow(szAppName, "TeREp2",
                         dwStyle,
                         CW_USEDEFAULT, CW_USEDEFAULT,
-                        rc.right - rc.left,
-                        rc.bottom - rc.top,
+                        100,
+                        100,
                         NULL, NULL, hInst, NULL);
     if (hwnd == NULL) {
         MessageBox(NULL, "Unable to create main window.", szAppName, MB_ICONERROR);
@@ -435,6 +422,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     ShowWindow(hwnd, nShow);
     UpdateWindow(hwnd);
 
+    adjustWindowSize(hwnd, 640, 400);
+
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
@@ -442,31 +431,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     return msg.wParam;
 }
 
-void prepare_bitmap_info(int w, int h, st_image *bminfo, uint8_t *palette){
-    BITMAPINFOHEADER bih = {
-        .biSize = sizeof(BITMAPINFOHEADER),
-        .biPlanes = 1,
-        .biBitCount = 8,
-        .biCompression = BI_RGB,
-    };
+void adjustWindowSize(HWND hwnd, int w, int h){
+    RECT rc = {0, 0, w, h};
+    //FIXME deduplicate this
+    DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-    bih.biWidth = w;
-    bih.biHeight = -h,
-    bih.biSizeImage = w * h;
-
-    bminfo->info = bih;
-
-    if(palette == NULL){
-        return;
-    }
-
-    uint8_t *ptr = palette;
-    for(int i =0; i<256;i++){
-        bminfo->palette[i].rgbRed   = ptr[0];
-        bminfo->palette[i].rgbGreen = ptr[1];
-        bminfo->palette[i].rgbBlue  = ptr[2];
-        ptr += 3;
-    }
+    AdjustWindowRect(&rc, dwStyle, TRUE);
+    SetWindowPos(hwnd, NULL, 
+        0,0,
+        rc.right - rc.left, rc.bottom - rc.top,
+        SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOZORDER
+    );
+    InvalidateRect(hwnd, 0, TRUE);
 }
 
 char *tmp_g_path;
@@ -507,112 +483,6 @@ void call_init(HWND hwnd, char path[], int complain){
     asm_render(); //just to avoid garbage in the framebuffer, maybe not even necessary
 
     SetTimer(hwnd, 122, 1000/HZ_DISPLAY, NULL);
-}
-
-void mydoscall(){
-    char *path = tmp_g_path;
-    int ok = innermydoscall(path);
-    call_portal->ok = ok;
-}
-
-int innermydoscall(char path[]){
-    uint16_t ax = call_portal->ax;
-    uint16_t bx = call_portal->bx;
-    uint16_t cx = call_portal->cx;
-    uint16_t dx = call_portal->dx;
-
-    static FILE* f = 0;
-    static int fidx = 5;
-    static int32_t totalrd = 0;
-
-    int op = ax & 0xff00;
-
-    if (op == 0x3d00){
-        //open
-        printf("* OPEN syscall called at EIP: %08x  \n", call_portal->caller);
-
-        volatile char *filename = &base_mem[dx];
-        if(filename[0] == 0){
-            //empty file name, happens when track has 5 cars
-            printf("Tried to load a empty filename, probably better to bail out\n");
-            return 0;
-        }
-        if(f != NULL){
-            printf("WARN: trying to open 2 files at once\n");
-        }
-        char ultrapath[MAX_PATH];
-
-        snprintf(ultrapath, MAX_PATH, "%s\\%s", path, filename);
-
-        printf("* trying to open: %s...  ", ultrapath);
-        f = fopen(ultrapath, "rb");
-        if(f == NULL){
-            printf("FAILED\n");
-            call_portal->ax = 2;
-        }else{
-            printf("OK\n");
-            fidx++;
-            call_portal->ax = fidx;
-        }
-        return f != NULL;
-    }
-    if (op == 0x4800){
-        static int seletor = 0;
-        seletor++;
-        void* mem = malloc(DEFAULT_LEN);
-        all_segments[seletor] = (uintptr_t)mem;
-        printf("* Aloc: %d, %08x, called at EIP: %08x\n", seletor, mem, call_portal->caller);
-        printf("* game asked for %d paragraphs (%d bytes), we gave it a %d bytes block anyway\n", bx, bx * 16, DEFAULT_LEN);
-        call_portal->ax = seletor;
-        return 1;
-    }
-    if (op == 0x3f00){
-        if(bx != fidx){
-            printf("* WAT?\n");
-            return 0;
-        }
-        volatile char *addr = &base_mem[dx];
-        int32_t r = fread((void*)addr, 1, cx, f);
-        if(dx != 0xf008){
-            //show this message only for carX.dat loading
-            printf("* READ syscall called at EIP: %08x  \n", call_portal->caller);
-            printf("* Read %ld bytes into address: %08x (%04x relative to DS)!\n", r, addr, dx);
-        }
-        if(r != cx){
-            printf("* Short read, %d, %d\n", r, cx);
-        }
-        totalrd += r;
-        call_portal->ax = r;
-        return r >= 0;
-    }
-    if (op == 0x4200){
-        uint32_t off = cx;
-        off <<= 16;
-        off += dx;
-
-        uint32_t fsok = fseek(f, off, ax & 0xf);
-        uint32_t offset = ftell(f);
-        call_portal->dx = offset >> 16;
-        call_portal->ax = offset;
-        return fsok == 0;
-    }
-    if (op == 0x3e00){
-        int ok = fclose(f);
-        f = NULL;
-        printf("* Total read: %ld\n=====================\n", totalrd);
-        totalrd = 0;
-        return ok == 0;
-    }
-
-    char error[256];
-
-    snprintf(error, 256, "\nERROR: unhandled call: %04x\n", ax);
-    printf("* UNKNOWN syscall called at EIP: %08x  \n", call_portal->caller);
-
-    printf("\n%s\n", error);
-    MessageBox(NULL, error, "Error", MB_ICONERROR);
-    exit(69);
-    return 0;
 }
 
 void adlib_callback(){
