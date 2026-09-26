@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <shlobj.h>
 
+
 TCHAR szAppName[] = "Terep2Win32";
 
 extern void asm_f_init(void);
@@ -13,6 +14,7 @@ extern void asm_physics(void);
 extern void asm_keys(void);
 
 void call_init(HWND hwnd, char path[], int complain);
+void adjustWindowSize(HWND hwnd, int w, int h);
 
 extern volatile uintptr_t all_segments[];
 extern volatile call_portal_t call_portal[];
@@ -135,8 +137,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             if(LOWORD(wParam)/100 == 401){//gambiarra da boa!
                 selected_scale = LOWORD(wParam);
-                InvalidateRect(hwnd, 0, TRUE);
-                //TODO also change the window size
+                int w,h;
+                getScaleDimension(selected_scale, &w, &h);
+                adjustWindowSize(hwnd, w, h);
             }
         }
         break;
@@ -270,18 +273,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
 
     QueryPerformanceFrequency(&tickfreq);
 
-    // TODO(gmb): get height of the menubar (20?)
-    RECT rc = {0, 0, 640, 400+20}; /* Tamanho interno desejado */
     DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-    AdjustWindowRect(&rc, dwStyle, FALSE);
-
-    /* Janela aproximada de 800x600 */
     hwnd = CreateWindow(szAppName, "TeREp2",
                         dwStyle,
                         CW_USEDEFAULT, CW_USEDEFAULT,
-                        rc.right - rc.left,
-                        rc.bottom - rc.top,
+                        100,
+                        100,
                         NULL, NULL, hInst, NULL);
     if (hwnd == NULL) {
         MessageBox(NULL, "Unable to create main window.", szAppName, MB_ICONERROR);
@@ -311,11 +309,24 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     ShowWindow(hwnd, nShow);
     UpdateWindow(hwnd);
 
+    adjustWindowSize(hwnd, 640, 400);
+
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
     return msg.wParam;
+}
+
+void adjustWindowSize(HWND hwnd, int w, int h){
+    // TODO(gmb): get height of the menubar (20?)
+    RECT rc = {0, 0, w, h+20};
+    //FIXME deduplicate this
+    DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+
+    AdjustWindowRect(&rc, dwStyle, FALSE);
+    SetWindowPos(hwnd, NULL, 0,0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOZORDER);
+    InvalidateRect(hwnd, 0, TRUE);
 }
 
 char *tmp_g_path;

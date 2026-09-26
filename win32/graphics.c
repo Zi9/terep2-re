@@ -82,6 +82,27 @@ void drawTheFramebuffer(HDC hdc,int scale){
     
 }
 
+void getScaleDimension(int scale, int *w, int *h){
+    if(scale == T2_SCALE_P2){
+        *w = 320*2;
+        *h = 200*2;
+        return;
+    }
+    if(scale == T2_SCALE_S2){
+        *w = 800;
+        *h = 600;
+        return;
+    }
+    if(scale == T2_SCALE_S3){
+        *w = 320*5;
+        *h = 200*6;
+        return;
+    }
+
+    *w = 320;
+    *h = 200;
+}
+
 static inline RGBQUAD blend_rgb(RGBQUAD a, RGBQUAD b){
     RGBQUAD ret;
     ret.rgbRed   = (a.rgbRed   + b.rgbRed)/2;
