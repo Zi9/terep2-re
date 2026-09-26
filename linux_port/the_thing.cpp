@@ -41,6 +41,7 @@ extern volatile call_portal_t call_portal[];
 extern volatile uint8_t base_mem[];
 
 extern "C" void _mydoscall();
+extern "C" void _adlib_callback();
 
 
 std::string basedir;
@@ -199,4 +200,10 @@ int main(int argc, char **argv){
     SDL_Quit();    
 
     return 0;
+}
+
+void _adlib_callback(){
+    uint16_t ax = call_portal->ax;
+    //sound thing goes here
+    printf("ADLIB callback called: %04x\n", ax);
 }

@@ -54,6 +54,7 @@ call_portal:
 section .text
 
 extern _mydoscall
+extern _adlib_callback
 
 %ifdef WIN32
     global _asm_f_init
@@ -103,6 +104,20 @@ DOS3Call:
     .deu_ruim:
     STC
     ret
+
+sound_thing:
+    MOV [call_portal.axr], AX
+    PUSHAD
+
+    MOV EBP, ESP
+    ;align the stack
+    AND ESP, -4
+
+    call _adlib_callback
+    MOV ESP, EBP
+
+    POPAD
+    ret    
 
 
 asm_f_init:
