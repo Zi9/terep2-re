@@ -319,13 +319,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
 }
 
 void adjustWindowSize(HWND hwnd, int w, int h){
-    // TODO(gmb): get height of the menubar (20?)
-    RECT rc = {0, 0, w, h+20};
+    RECT rc = {0, 0, w, h};
     //FIXME deduplicate this
     DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-    AdjustWindowRect(&rc, dwStyle, FALSE);
-    SetWindowPos(hwnd, NULL, 0,0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOZORDER);
+    AdjustWindowRect(&rc, dwStyle, TRUE);
+    SetWindowPos(hwnd, NULL, 
+        0,0,
+        rc.right - rc.left, rc.bottom - rc.top,
+        SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOZORDER
+    );
     InvalidateRect(hwnd, 0, TRUE);
 }
 
